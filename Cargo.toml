@@ -1,0 +1,19 @@
+[package]
+name = "oly-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.45"
+clap = { version = "4.6.1", features = ["derive"] }
+confy = { version = "2.0.0", features = ["serde_yaml", "yaml_conf"], default-features = false }
+is_executable = "1.0.6"
+log = "0.4.33"
+memoize = "0.6.0"
+regex = "1.12.4"
+tree-sitter = "0.26.9"
+noyalib = "0.0.8"
+serde_derive = "1.0.228"
+serde = "1.0.228"
+simplelog = "0.12.2"
+etcetera = "0.11.0"

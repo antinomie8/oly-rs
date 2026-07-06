@@ -1,0 +1,88 @@
+#####################################
+# This is oly's configuration file. #
+# Please edit the following values. #
+#####################################
+
+# the author's name in the preview and generated pdfs
+author: Leonhard Euler
+
+# the base path where solutions are stored
+base_path: ~/Mathematics/Solutions
+
+# the path where figures are stored, inside of base_path
+figures_dir: figures
+
+# the markup language the solutions are typed in
+# must be one of latex or typst (default latex)
+lang: latex
+
+# language setting passed to the typst preview and preamble files.
+# must be a two or three letters language code
+language: en
+
+# the text editor to use
+# autodected from $EDITOR and $VISUAL, fallback to vim
+# editor: vim
+
+# the pdf viewer used for 'oly gen'
+pdf_viewer: zathura
+
+# whether to open the generated pdf with pdf_viewer when running 'oly gen'
+open: true
+
+# whether to confirm deletion or not in 'oly rm'
+confirm: true
+
+# whether to only output the entries written in the current markup language in
+# 'oly list'
+filter_lang: true
+
+# map contest names to other ones
+abbreviations:
+  Shortlist: ISL
+
+# directory structure to store contests
+# available variables are: date, contest, year, problem and source
+contest_format:
+  Club: "Club/${date}"
+  Test: "POFM/Tests/${year}/${contest} ${year} ${problem}"
+# you can also use prefixes if the contest parser doesn't give the result you want
+contest_format_prefix:
+  some-prefix: "somedir/${source}"
+
+# customize the colors used by the show command
+# see there for the full list of options:
+# https://github.com/antinomie8/oly/tree/main/include/oly/config.hpp#L55-L86
+# you can generate a colorscheme from a (Neo)Vim one using
+# https://github.com/antinomie8/oly/blob/main/assets/extras/get_nvim_colors.lua
+colorscheme:
+  punctuation.special: "#7fb4ca"
+  constant: "#7e9cd8"
+  markup.math: "#7fb4ca"
+
+# where to output the generated pdf
+# defaults to ${XDG_CACHE_HOME:-~/.cache}/oly
+# output_directory: ${PWD}
+
+# where temporary files are written
+# defaults to ${TMPDIR:-/tmp}/oly
+# tmpdir: ${XDG_CACHE_HOME}/oly/edit
+
+# packages to import
+packages:
+  # latex: '\usepackage[whatever]{somepackage}'
+  typst: '#import "@local/oly:1.0.0": *'
+
+# metadata you get prompted for in 'oly add'
+# metadata: "\
+#   source: ${source}\n\
+#   topic:  ${topic}\n\
+#   tags:   []\n\
+#   url:    \n\
+#   "
+
+# You can also override preview, preamble and contents
+# preview is what gets put in the preview file
+# contents is the initial content in a file opened through 'oly add'
+# preamble is the what gets put at the top of the filed used to create pdfs with 'oly gen'
+# they should map keys 'latex' or 'typst' (or both) to a string

@@ -1,0 +1,160 @@
+#compdef oly
+
+local context state state_descr line
+
+# Global options
+local -a global_opts=(
+	'(-c --config-file)'{-c,--config-file}'[Specify config file]:file:_files'
+	'(-h --help)'{-h,--help}'[Show help message]'
+	'--log-level[Set the log level]:level:(CRITICAL ERROR WARNING INFO HINT DEBUG TRACE)'
+	'--lang[Choose markup language to use]:lang:(latex typst)'
+	'--language[Choose which language to use]'
+	'(-v --version)'{-v,--version}'[Print this binary'"'"'s version]'
+	'--verify-config[Verify configuration file]'
+)
+
+# Subcommands
+local -a subcommands=(
+	'add:Add a problem to the database'
+	'edit:Edit an entry in the database'
+	'gen:Generate a LaTeX or PDF file from a problem'
+	'search:Search problems by contest, metadata...'
+	'show:Print a problem statement'
+	'list:List problems in the database'
+	'alias:Link a problem to another one'
+	'rm:Remove a problem and its solution file'
+	'mv:Rename a problem'
+)
+
+# Subcommand-specific options
+local -a opts_edit=()   # no options
+local -a opts_search=() # no options
+local -a opts_alias=()  # no options
+
+local -a opts_add=(
+	'(-o --overwrite)'{-o,--overwrite}'[Overwrite previous database entry]'
+)
+
+local -a opts_gen=(
+	'(--open --no-open)--open[Open the generated PDF]'
+	'(--open --no-open)--no-open[Do not open the generated PDF]'
+	'--clean[Remove auxiliary files]'
+	'--no-pdf[Only generate a source file]'
+	'--no-source[Remove the source file and induce --clean]'
+	'--cwd[Create the pdf in the current directory]'
+	'(-p --print-path)'{-p,--print-path}'[Print the path of the directory where the pdf will be generated]'
+	'--clear-cache[Clear the cache]'
+	'--regen[Regenerate the pdf even if it was cached]'
+	'--all[Generate a pdf for each solution file]'
+)
+
+local -a opts_show=(
+	'--color[When to use terminal colours (always, auto, never)]:color:(always never auto)'
+)
+
+local -a opts_rm=(
+	'(-i --confirm)'{-i,--confirm}'[Prompt before deleting]'
+	'(-f --force)'{-f,--force}'[Do not prompt before deleting]'
+)
+
+local -a opts_mv=(
+	'(-a --alias)'{-a,--alias}'[alias the new file to the old one]'
+)
+
+local -a opts_list=(
+	'(-t --test)'{-t,--test}'[Test whether get_problem_name output matches the source]'
+	'(--filter-lang --no-filter-lang)--filter-lang[Only output the entries written in the current markup language]'
+	'(--filter-lang --no-filter-lang)--no-filter-lang[Output entries regardless of the markup language used]'
+	'--print0[Output entries separated by NUL bytes]'
+)
+
+# Dynamic problem list
+_oly_problems() {
+	local -a problems
+	problems=("${(@f)$(oly list 2>/dev/null)}")
+	_describe -t problems 'problem' problems
+}
+
+# Helper: detect subcommand (first non-option after command)
+# Handles globals anywhere, and respects `--` end-of-options.
+local subcmd=""
+{
+	local i w
+	for ((i = 2; i <= ${#words}; ++i)); do
+		w=${words[i]}
+		[[ $w == -- ]] && break
+		if [[ $w != -* ]]; then
+			subcmd=$w
+			break
+		fi
+	done
+}
+
+# Dispatcher
+_arguments -C \
+	$global_opts \
+	'1:subcommand:->subcmd' \
+	'*:: :->args'
+
+case $state in
+subcmd)
+	# At position 1 (after command), offer subcommands.
+	_describe -t commands 'subcommand' subcommands
+	;;
+args)
+	# After a subcommand (or while typing its args), offer that subcommand's options + globals.
+	case $subcmd in
+	add)
+		_arguments $global_opts ${opts_add[@]}
+		;;
+	edit)
+		_arguments \
+			$global_opts \
+			${opts_edit[@]} \
+			'*:problem:_oly_problems'
+		;;
+	gen)
+		_arguments \
+			$global_opts \
+			${opts_gen[@]} \
+			'*:problem:_oly_problems'
+		;;
+	search)
+		_arguments $global_opts ${opts_search[@]}
+		;;
+	show)
+		_arguments \
+			$global_opts \
+			'*:problem:_oly_problems'
+		;;
+	list)
+		_arguments $global_opts ${opts_list[@]}
+		;;
+	alias)
+		_arguments \
+			$global_opts \
+			'1:source:_oly_problems' \
+			'2:target:_oly_problems'
+		;;
+	rm)
+		_arguments \
+			$global_opts \
+			${opts_rm[@]} \
+			'*:problem:_oly_problems'
+		;;
+	mv)
+		_arguments \
+			$global_opts \
+			${opts_mv[@]} \
+			'1:old problem:_oly_problems' \
+			'2:new name:'
+		;;
+	*)
+		# No subcommand yet (or none detected): still offer global options.
+		_arguments $global_opts
+		;;
+	esac
+	;;
+esac
+
+# TODO use clap completions

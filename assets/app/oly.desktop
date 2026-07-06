@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=oly
+Icon=oly
+Exec=oly --scheme %u
+Type=Application
+Terminal=true
+MimeType=x-scheme-handler/oly;
