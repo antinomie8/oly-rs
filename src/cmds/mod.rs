@@ -1,5 +1,6 @@
 pub mod add;
 pub mod alias;
+pub mod completions;
 pub mod default;
 pub mod edit;
 pub mod generate;

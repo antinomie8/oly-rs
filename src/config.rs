@@ -3,7 +3,7 @@ use etcetera::{BaseStrategy, choose_base_strategy};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, env, fs, path::PathBuf};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Lang {
 	Latex,
@@ -32,7 +32,7 @@ impl Lang {
 	}
 }
 
-#[derive(Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct LangMap {
 	latex: String,
@@ -47,7 +47,7 @@ impl LangMap {
 	}
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Config {
 	// the author's name in the preview and generated pdfs
@@ -93,7 +93,7 @@ pub struct Config {
 	pub contest_format_prefix: HashMap<String, String>,
 
 	// customize the colors used by the show command
-	#[serde(deserialize_with = "deserialize_colorscheme", default)]
+	#[serde(default = "default_colorscheme", deserialize_with = "deserialize_colorscheme")]
 	pub colorscheme: HashMap<String, i32>,
 
 	// where to output the generated pdf
@@ -120,6 +120,38 @@ pub struct Config {
 	pub metadata: String,
 }
 
+fn default_colorscheme() -> HashMap<String, i32> {
+	let mut colors = HashMap::new();
+	colors.insert("punctuation.special".into(), 0x7fb4ca);
+	colors.insert("punctuation.delimiter".into(), 0x9cabca);
+	colors.insert("punctuation.bracket".into(), 0x9cabca);
+	colors.insert("operator".into(), 0xc0a36e);
+	colors.insert("keyword.import".into(), 0xe46876);
+	colors.insert("keyword".into(), 0x957fb8);
+	colors.insert("keyword.repeat".into(), 0x957fb8);
+	colors.insert("keyword.conditional".into(), 0x957fb8);
+	colors.insert("number".into(), 0xd27e99);
+	colors.insert("string".into(), 0x98bb6c);
+	colors.insert("boolean".into(), 0xffa066);
+	colors.insert("constant".into(), 0xffa066);
+	colors.insert("variable.member".into(), 0xe6c384);
+	colors.insert("function.call".into(), 0x7e9cd8);
+	colors.insert("markup.heading.1".into(), 0x7e9cd8);
+	colors.insert("markup.heading.2".into(), 0x7e9cd8);
+	colors.insert("markup.heading.3".into(), 0x7e9cd8);
+	colors.insert("markup.heading.4".into(), 0x7e9cd8);
+	colors.insert("markup.heading.5".into(), 0x7e9cd8);
+	colors.insert("markup.heading.6".into(), 0x7e9cd8);
+	colors.insert("markup.link.url".into(), 0x7fb4ca);
+	colors.insert("markup.raw".into(), 0x98bb6c);
+	colors.insert("label".into(), 0x957fb8);
+	colors.insert("markup.raw.block".into(), 0x98bb6c);
+	colors.insert("markup.link.label".into(), 0x7fb4ca);
+	colors.insert("markup.link".into(), 0x7fb4ca);
+	colors.insert("markup.math".into(), 0xffa066);
+	colors
+}
+
 fn deserialize_colorscheme<'de, D>(deserializer: D) -> Result<HashMap<String, i32>, D::Error>
 where
 	D: Deserializer<'de>,
@@ -132,13 +164,18 @@ where
 	}
 
 	let raw_map: HashMap<String, ColorValue> = HashMap::deserialize(deserializer)?;
-	let mut map = HashMap::with_capacity(raw_map.len());
+	let mut map = default_colorscheme();
 
 	for (k, v) in raw_map {
 		let color_int = match v {
 			ColorValue::Int(i) => i,
-			ColorValue::Str(s) => i32::from_str_radix(s.trim_start_matches('#'), 16)
-				.map_err(serde::de::Error::custom)?,
+			ColorValue::Str(s) => match i32::from_str_radix(s.trim_start_matches('#'), 16) {
+				Ok(color) => color,
+				Err(_) => {
+					log::error!("{} is not a valid hex color code !", s);
+					continue;
+				}
+			},
 		};
 		map.insert(k, color_int);
 	}
@@ -171,37 +208,7 @@ impl ::std::default::Default for Config {
 			},
 			contest_format: HashMap::new(),
 			contest_format_prefix: HashMap::new(),
-			colorscheme: {
-				let mut colors = HashMap::new();
-				colors.insert("punctuation.special".into(), 0x7fb4ca);
-				colors.insert("punctuation.delimiter".into(), 0x9cabca);
-				colors.insert("punctuation.bracket".into(), 0x9cabca);
-				colors.insert("operator".into(), 0xc0a36e);
-				colors.insert("keyword.import".into(), 0xe46876);
-				colors.insert("keyword".into(), 0x957fb8);
-				colors.insert("keyword.repeat".into(), 0x957fb8);
-				colors.insert("keyword.conditional".into(), 0x957fb8);
-				colors.insert("number".into(), 0xd27e99);
-				colors.insert("string".into(), 0x98bb6c);
-				colors.insert("boolean".into(), 0xffa066);
-				colors.insert("constant".into(), 0xffa066);
-				colors.insert("variable.member".into(), 0xe6c384);
-				colors.insert("function.call".into(), 0x7e9cd8);
-				colors.insert("markup.heading.1".into(), 0x7e9cd8);
-				colors.insert("markup.heading.2".into(), 0x7e9cd8);
-				colors.insert("markup.heading.3".into(), 0x7e9cd8);
-				colors.insert("markup.heading.4".into(), 0x7e9cd8);
-				colors.insert("markup.heading.5".into(), 0x7e9cd8);
-				colors.insert("markup.heading.6".into(), 0x7e9cd8);
-				colors.insert("markup.link.url".into(), 0x7fb4ca);
-				colors.insert("markup.raw".into(), 0x98bb6c);
-				colors.insert("label".into(), 0x957fb8);
-				colors.insert("markup.raw.block".into(), 0x98bb6c);
-				colors.insert("markup.link.label".into(), 0x7fb4ca);
-				colors.insert("markup.link".into(), 0x7fb4ca);
-				colors.insert("markup.math".into(), 0xffa066);
-				colors
-			},
+			colorscheme: default_colorscheme(),
 			output_directory: strategy.cache_dir().join("oly"),
 			tmpdir: PathBuf::from(env::var("TMPDIR").unwrap_or("/tmp".into())).join("oly"),
 			packages: LangMap {
@@ -245,7 +252,18 @@ impl Config {
 		loop {
 			if let Some(config) = utils::yaml::load(config_path, "Couldn't load config") {
 				match Config::deserialize(&config) {
-					Ok(parsed_config) => break parsed_config,
+					Ok(mut parsed_config) => {
+						parsed_config.base_path = PathBuf::from(utils::expand_env_vars(
+							parsed_config.base_path.to_str().unwrap_or(""),
+						));
+						parsed_config.output_directory = PathBuf::from(utils::expand_env_vars(
+							parsed_config.output_directory.to_str().unwrap_or(""),
+						));
+						parsed_config.tmpdir = PathBuf::from(utils::expand_env_vars(
+							parsed_config.tmpdir.to_str().unwrap_or(""),
+						));
+						break parsed_config;
+					}
 					Err(err) => {
 						log::error!("Failed to deserialize config: {err}");
 						utils::wait();

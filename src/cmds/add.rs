@@ -1,8 +1,7 @@
 use crate::{config::Config, contest, utils};
 use clap::Args;
-use log;
 use noyalib as Yaml;
-use std::{collections::HashMap, fs, io, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 #[derive(Args)]
 pub struct Arguments {
@@ -15,7 +14,9 @@ pub struct Arguments {
 
 pub fn run(args: &Arguments, opts: &Config) -> Result<(), Box<dyn std::error::Error>> {
 	if args.problems.is_empty() {
-		log::error!("Expected problem name !") // TODO: logopt::HELP
+		log::error!("Expected problem name !");
+		crate::logger::help(Some("add"));
+		return Err("Expected problem name".into());
 	}
 
 	for source in &args.problems {
@@ -25,8 +26,8 @@ pub fn run(args: &Arguments, opts: &Config) -> Result<(), Box<dyn std::error::Er
 }
 
 fn add_problem(source: &String, args: &Arguments, opts: &Config) {
-	let pb_path = contest::get_path(&source, opts);
-	let pb_name = contest::get_name(&source, opts);
+	let pb_path = contest::get_path(source, opts);
+	let pb_name = contest::get_name(source, opts);
 
 	if !args.overwrite && pb_path.exists() {
 		log::error!(
@@ -39,9 +40,9 @@ fn add_problem(source: &String, args: &Arguments, opts: &Config) {
 	}
 
 	let tmp_path = opts.tmpdir.join(&pb_name);
-	let body = get_solution_body(&tmp_path, &pb_name, &opts).unwrap();
-	let metadata = get_solution_metadata(&tmp_path, &opts);
-	// utils::figures::save(tmp_path, pb_path); // TODO
+	let body = get_solution_body(&tmp_path, &pb_name, opts);
+	let metadata = get_solution_metadata(&tmp_path, &pb_name, opts);
+	utils::figures::save(&tmp_path, &pb_path, opts);
 	create_solution_file(
 		contest::get_solution_path(source, opts),
 		body,
@@ -50,14 +51,11 @@ fn add_problem(source: &String, args: &Arguments, opts: &Config) {
 	);
 }
 
-fn get_solution_body(
-	base_path: &PathBuf,
-	source: &String,
-	opts: &Config,
-) -> Result<String, io::Error> {
-	utils::create_preview_file(source, opts);
+fn get_solution_body(base_path: &PathBuf, source: &String, opts: &Config) -> String {
 	let mut shared = HashMap::new();
 	shared.insert("source", source.clone());
+	shared.insert("packages", opts.packages.get(opts).clone());
+	utils::create_preview_file(source, opts, None, Some(&shared));
 	let contents = utils::expand_vars(
 		opts.contents.get(opts),
 		true,
@@ -69,12 +67,37 @@ fn get_solution_body(
 	let path = base_path.join(format!("solution{}", opts.lang.ext()));
 	utils::create(&path, &contents);
 	utils::edit(&path, &opts.editor);
-	Ok(fs::read_to_string(path)?.trim_start().to_string()) // TODO handle error
+	match fs::read_to_string(&path) {
+		Ok(content) => content.trim_start().to_string(),
+		Err(e) => {
+			log::error!(
+				"failed to read {} file contents: {}",
+				path.to_str().unwrap(),
+				e
+			);
+			String::new()
+		}
+	}
 }
 
-fn get_solution_metadata(path: &PathBuf, opts: &Config) -> Yaml::Value {
+fn get_solution_metadata(path: &PathBuf, source: &String, opts: &Config) -> Yaml::Value {
+	let mut shared = HashMap::new();
+	shared.insert("source", source.clone());
+	shared.insert("packages", opts.packages.get(opts).clone());
+	let topic = contest::get_topic(source);
+	if !topic.is_empty() {
+		shared.insert("topic", topic);
+	}
 	let path = path.join("metadata.yaml");
-	utils::create(&path, &opts.metadata); // TODO expand vars with TOPIC and source
+	let metadata = utils::expand_vars(
+		opts.metadata.as_str(),
+		true,
+		true,
+		None,
+		Some(opts),
+		Some(&shared),
+	);
+	utils::create(&path, &metadata);
 	loop {
 		utils::edit(&path, &opts.editor);
 		if let Some(metadata) = utils::yaml::load(&path, "Couldn't get solution metadata") {
@@ -95,12 +118,12 @@ fn create_solution_file(path: PathBuf, body: String, metadata: Yaml::Value, opts
 		{body}",
 	);
 	if let Some(parent) = &path.parent() {
-		fs::create_dir_all(parent);
+		if let Err(err) = fs::create_dir_all(parent) {
+			log::error!("Couldn't create solution directory: {}", err);
+			return;
+		}
 	}
-	if let Err(e) = fs::write(path, &contents) {
-		// dump contents to stdout so they aren't lost
-		// (even though the files should remain in opts.tmpdir, but you know, just in case)
-		log::error!("Couldn't create solution file: {}", e);
-		print!("{}", contents);
+	if let Err(err) = fs::write(path, &contents) {
+		log::error!("Couldn't create solution file: {}", err);
 	};
 }

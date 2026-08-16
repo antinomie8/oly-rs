@@ -1,13 +1,14 @@
 use chrono::{Datelike, Local};
-// use memoize::memoize; // TODO
+use memoize::memoize;
 use regex::Regex;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use crate::{Config, utils};
 
-fn get_topic(letter: char) -> &'static str {
+fn topic_from_letter(letter: char) -> &'static str {
 	match letter {
 		'A' => "Algebra",
 		'C' => "Combinatorics",
@@ -15,6 +16,17 @@ fn get_topic(letter: char) -> &'static str {
 		'N' => "Number Theory",
 		_ => "",
 	}
+}
+
+/// The topic of a problem, derived from the letter prefix of its problem
+/// number (`A` for Algebra, `C` for Combinatorics, ...). Only a leading
+/// letter prefix yields a topic, like in the C++ version.
+pub fn get_topic(source: &str) -> String {
+	let problem = parsers::get_problem(source);
+	let Some(first) = problem.chars().next() else {
+		return String::new();
+	};
+	topic_from_letter(first).to_string()
 }
 
 fn get_contest_format(contest: &str, opts: &Config) -> Option<String> {
@@ -80,14 +92,6 @@ pub mod parsers {
 				let prefix = caps.get(3).unwrap().as_str();
 				let digit = caps.get(4).unwrap().as_str();
 				let problem = format!("{}{}", prefix, digit);
-
-				if let Some(ch) = prefix.chars().next() {
-					let topic = get_topic(ch);
-					if !topic.is_empty() {
-						// shared.insert("topic".to_string(), topic.to_string());
-						// TODO
-					}
-				}
 				problem
 			}
 		} else {
@@ -168,22 +172,79 @@ fn get_relative_path(source: &str, opts: &Config) -> PathBuf {
 	path
 }
 
-// #[memoize]
-pub fn get_path(source: &str, opts: &Config) -> PathBuf {
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct ConfigSnapshot {
+	base_path: PathBuf,
+	lang: crate::config::Lang,
+	abbreviations: Vec<(String, String)>,
+	contest_format: Vec<(String, String)>,
+	contest_format_prefix: Vec<(String, String)>,
+}
+
+fn sorted_map_entries(map: &HashMap<String, String>) -> Vec<(String, String)> {
+	let mut entries: Vec<_> = map
+		.iter()
+		.map(|(key, value)| (key.clone(), value.clone()))
+		.collect();
+	entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+	entries
+}
+
+fn snapshot(opts: &Config) -> ConfigSnapshot {
+	ConfigSnapshot {
+		base_path: opts.base_path.clone(),
+		lang: opts.lang,
+		abbreviations: sorted_map_entries(&opts.abbreviations),
+		contest_format: sorted_map_entries(&opts.contest_format),
+		contest_format_prefix: sorted_map_entries(&opts.contest_format_prefix),
+	}
+}
+
+fn snapshot_config(snapshot: &ConfigSnapshot) -> Config {
+	let mut opts = Config::default();
+	opts.base_path = snapshot.base_path.clone();
+	opts.lang = snapshot.lang;
+	opts.abbreviations = snapshot.abbreviations.iter().cloned().collect();
+	opts.contest_format = snapshot.contest_format.iter().cloned().collect();
+	opts.contest_format_prefix = snapshot.contest_format_prefix.iter().cloned().collect();
+	opts
+}
+
+#[memoize]
+fn get_path_memoized(source: String, snapshot: ConfigSnapshot) -> PathBuf {
+	let opts = snapshot_config(&snapshot);
 	let base_path = PathBuf::from(utils::expand_env_vars(opts.base_path.to_str().unwrap()));
-	let source_path = get_relative_path(source, opts);
+	let source_path = get_relative_path(&source, &opts);
 	base_path.join(source_path)
 }
 
-// #[memoize]
-pub fn get_solution_path(source: &str, opts: &Config) -> PathBuf {
-	let path = get_path(source, opts);
+pub fn get_path(source: &str, opts: &Config) -> PathBuf {
+	get_path_memoized(source.to_string(), snapshot(opts))
+}
+
+#[memoize]
+fn get_solution_path_memoized(source: String, snapshot: ConfigSnapshot) -> PathBuf {
+	let opts = snapshot_config(&snapshot);
+	let path = get_path(&source, &opts);
 	let ext = opts.lang.ext();
 	path.join(format!("solution{}", ext))
 }
 
-// #[memoize]
+pub fn get_solution_path(source: &str, opts: &Config) -> PathBuf {
+	get_solution_path_memoized(source.to_string(), snapshot(opts))
+}
+
+#[memoize]
+fn get_name_memoized(source: String, snapshot: ConfigSnapshot) -> String {
+	let opts = snapshot_config(&snapshot);
+	get_name_uncached(&source, &opts)
+}
+
 pub fn get_name(source: &str, opts: &Config) -> String {
+	get_name_memoized(source.to_string(), snapshot(opts))
+}
+
+fn get_name_uncached(source: &str, opts: &Config) -> String {
 	let contest = parsers::get_contest(source, opts);
 	let contest_format = get_contest_format(&contest, opts);
 

@@ -1,160 +1,406 @@
 #compdef oly
 
-local context state state_descr line
+autoload -U is-at-least
 
-# Global options
-local -a global_opts=(
-	'(-c --config-file)'{-c,--config-file}'[Specify config file]:file:_files'
-	'(-h --help)'{-h,--help}'[Show help message]'
-	'--log-level[Set the log level]:level:(CRITICAL ERROR WARNING INFO HINT DEBUG TRACE)'
-	'--lang[Choose markup language to use]:lang:(latex typst)'
-	'--language[Choose which language to use]'
-	'(-v --version)'{-v,--version}'[Print this binary'"'"'s version]'
-	'--verify-config[Verify configuration file]'
-)
+_oly() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
 
-# Subcommands
-local -a subcommands=(
-	'add:Add a problem to the database'
-	'edit:Edit an entry in the database'
-	'gen:Generate a LaTeX or PDF file from a problem'
-	'search:Search problems by contest, metadata...'
-	'show:Print a problem statement'
-	'list:List problems in the database'
-	'alias:Link a problem to another one'
-	'rm:Remove a problem and its solution file'
-	'mv:Rename a problem'
-)
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
 
-# Subcommand-specific options
-local -a opts_edit=()   # no options
-local -a opts_search=() # no options
-local -a opts_alias=()  # no options
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_oly_commands" \
+"*::: :->oly" \
+&& ret=0
+    case $state in
+    (oly)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:oly-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-o[Overwrite previous database entry for the problem]' \
+'--overwrite[Overwrite previous database entry for the problem]' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::problems:_oly_problems' \
+&& ret=0
+;;
+(edit)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::problems:_oly_problems' \
+&& ret=0
+;;
+(gen)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'--open[Open the generated pdf]' \
+'--no-open[Do not open the generated pdf]' \
+'--clean[Remove auxiliary files]' \
+'--no-pdf[Only generate a source file]' \
+'--no-source[Remove the source file and induce --clean]' \
+'--cwd[Create the pdf in the current directory]' \
+'-p[Print the path of the directory where the pdf will be generated]' \
+'--print-path[Print the path of the directory where the pdf will be generated]' \
+'--clear-cache[Clear the cache]' \
+'--regen[Regenerate the pdf even if it was cached]' \
+'--all[Generate a pdf for each solution file]' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::problems:_oly_problems' \
+&& ret=0
+;;
+(search)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::queries:_default' \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+'--color=[When to use terminal colours (always, auto, never)]:COLOR:_default' \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::problems:_oly_problems' \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-t[Test whether get_problem_name output matches the source]' \
+'--test[Test whether get_problem_name output matches the source]' \
+'--print0[Output entries separated by NUL bytes]' \
+'--filter-lang[Only output the entries written in the current markup language]' \
+'--no-filter-lang[Output entries regardless of the markup language used]' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(alias)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::problems:_oly_problems' \
+&& ret=0
+;;
+(rm)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-i[Prompt before deleting file]' \
+'--confirm[Prompt before deleting file]' \
+'-f[Do not prompt before deleting file]' \
+'--force[Do not prompt before deleting file]' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::problems:_oly_problems' \
+&& ret=0
+;;
+(mv)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Specify config file to use]:FILE:_files' \
+'--config-file=[Specify config file to use]:FILE:_files' \
+'--log-level=[Specify log level]:LOG_LEVEL:_default' \
+'--lang=[Choose markup language to use]:LANG:_default' \
+'--language=[Choose which language to use]:LANGUAGE:_default' \
+'--scheme=[Use the scheme handler]::SCHEME:_default' \
+'-a[Alias the new file to the old one]' \
+'--alias[Alias the new file to the old one]' \
+'-v[Print program version and related info]' \
+'--version[Print program version and related info]' \
+'--verify-config[Check whether the config has any errors]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::problems:_oly_problems' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_oly__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
 
-local -a opts_add=(
-	'(-o --overwrite)'{-o,--overwrite}'[Overwrite previous database entry]'
-)
-
-local -a opts_gen=(
-	'(--open --no-open)--open[Open the generated PDF]'
-	'(--open --no-open)--no-open[Do not open the generated PDF]'
-	'--clean[Remove auxiliary files]'
-	'--no-pdf[Only generate a source file]'
-	'--no-source[Remove the source file and induce --clean]'
-	'--cwd[Create the pdf in the current directory]'
-	'(-p --print-path)'{-p,--print-path}'[Print the path of the directory where the pdf will be generated]'
-	'--clear-cache[Clear the cache]'
-	'--regen[Regenerate the pdf even if it was cached]'
-	'--all[Generate a pdf for each solution file]'
-)
-
-local -a opts_show=(
-	'--color[When to use terminal colours (always, auto, never)]:color:(always never auto)'
-)
-
-local -a opts_rm=(
-	'(-i --confirm)'{-i,--confirm}'[Prompt before deleting]'
-	'(-f --force)'{-f,--force}'[Do not prompt before deleting]'
-)
-
-local -a opts_mv=(
-	'(-a --alias)'{-a,--alias}'[alias the new file to the old one]'
-)
-
-local -a opts_list=(
-	'(-t --test)'{-t,--test}'[Test whether get_problem_name output matches the source]'
-	'(--filter-lang --no-filter-lang)--filter-lang[Only output the entries written in the current markup language]'
-	'(--filter-lang --no-filter-lang)--no-filter-lang[Output entries regardless of the markup language used]'
-	'--print0[Output entries separated by NUL bytes]'
-)
-
-# Dynamic problem list
-_oly_problems() {
-	local -a problems
-	problems=("${(@f)$(oly list 2>/dev/null)}")
-	_describe -t problems 'problem' problems
-}
-
-# Helper: detect subcommand (first non-option after command)
-# Handles globals anywhere, and respects `--` end-of-options.
-local subcmd=""
-{
-	local i w
-	for ((i = 2; i <= ${#words}; ++i)); do
-		w=${words[i]}
-		[[ $w == -- ]] && break
-		if [[ $w != -* ]]; then
-			subcmd=$w
-			break
-		fi
-	done
-}
-
-# Dispatcher
-_arguments -C \
-	$global_opts \
-	'1:subcommand:->subcmd' \
-	'*:: :->args'
-
-case $state in
-subcmd)
-	# At position 1 (after command), offer subcommands.
-	_describe -t commands 'subcommand' subcommands
-	;;
-args)
-	# After a subcommand (or while typing its args), offer that subcommand's options + globals.
-	case $subcmd in
-	add)
-		_arguments $global_opts ${opts_add[@]}
-		;;
-	edit)
-		_arguments \
-			$global_opts \
-			${opts_edit[@]} \
-			'*:problem:_oly_problems'
-		;;
-	gen)
-		_arguments \
-			$global_opts \
-			${opts_gen[@]} \
-			'*:problem:_oly_problems'
-		;;
-	search)
-		_arguments $global_opts ${opts_search[@]}
-		;;
-	show)
-		_arguments \
-			$global_opts \
-			'*:problem:_oly_problems'
-		;;
-	list)
-		_arguments $global_opts ${opts_list[@]}
-		;;
-	alias)
-		_arguments \
-			$global_opts \
-			'1:source:_oly_problems' \
-			'2:target:_oly_problems'
-		;;
-	rm)
-		_arguments \
-			$global_opts \
-			${opts_rm[@]} \
-			'*:problem:_oly_problems'
-		;;
-	mv)
-		_arguments \
-			$global_opts \
-			${opts_mv[@]} \
-			'1:old problem:_oly_problems' \
-			'2:new name:'
-		;;
-	*)
-		# No subcommand yet (or none detected): still offer global options.
-		_arguments $global_opts
-		;;
-	esac
-	;;
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:oly-help-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(edit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gen)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(search)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(alias)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(rm)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(mv)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
 esac
+;;
+        esac
+    ;;
+esac
+}
 
-# TODO use clap completions
+(( $+functions[_oly_commands] )) ||
+_oly_commands() {
+    local commands; commands=(
+'add:Add a problem to the database' \
+'edit:Edit an entry from the database' \
+'gen:Generate a pdf for a problem' \
+'search:Search problems by contest, metadata...' \
+'show:Print a problem statement' \
+'list:List problems in the database' \
+'alias:Link a problem to another one' \
+'rm:Remove a problem and its solution file' \
+'mv:Rename a problem' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__add_commands] )) ||
+_oly__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__alias_commands] )) ||
+_oly__subcmd__alias_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__edit_commands] )) ||
+_oly__subcmd__edit_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__gen_commands] )) ||
+_oly__subcmd__gen_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help_commands] )) ||
+_oly__subcmd__help_commands() {
+    local commands; commands=(
+'add:Add a problem to the database' \
+'edit:Edit an entry from the database' \
+'gen:Generate a pdf for a problem' \
+'search:Search problems by contest, metadata...' \
+'show:Print a problem statement' \
+'list:List problems in the database' \
+'alias:Link a problem to another one' \
+'rm:Remove a problem and its solution file' \
+'mv:Rename a problem' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__add_commands] )) ||
+_oly__subcmd__help__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__alias_commands] )) ||
+_oly__subcmd__help__subcmd__alias_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__edit_commands] )) ||
+_oly__subcmd__help__subcmd__edit_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__gen_commands] )) ||
+_oly__subcmd__help__subcmd__gen_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__help_commands] )) ||
+_oly__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__list_commands] )) ||
+_oly__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__mv_commands] )) ||
+_oly__subcmd__help__subcmd__mv_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__rm_commands] )) ||
+_oly__subcmd__help__subcmd__rm_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__search_commands] )) ||
+_oly__subcmd__help__subcmd__search_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__help__subcmd__show_commands] )) ||
+_oly__subcmd__help__subcmd__show_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__list_commands] )) ||
+_oly__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__mv_commands] )) ||
+_oly__subcmd__mv_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__rm_commands] )) ||
+_oly__subcmd__rm_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__search_commands] )) ||
+_oly__subcmd__search_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+(( $+functions[_oly__subcmd__show_commands] )) ||
+_oly__subcmd__show_commands() {
+    local commands; commands=()
+    _describe -t subcommand 'subcommand' commands "$@"
+}
+
+(( $+functions[_oly_problems] )) ||
+_oly_problems() {
+local -a problems
+problems=("${(@f)$(oly list 2>/dev/null)}")
+_describe -t problem 'problem' problems
+}
+
+if [ "$funcstack[1]" = "_oly" ]; then
+    _oly "$@"
+else
+    compdef _oly oly
+fi

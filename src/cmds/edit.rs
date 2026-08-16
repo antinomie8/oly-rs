@@ -1,8 +1,7 @@
 use crate::{config::Config, contest, utils};
 use clap::Args;
-use log;
 use noyalib as Yaml;
-use std::{fs, io, path::PathBuf};
+use std::path::Path;
 
 #[derive(Args)]
 pub struct Arguments {
@@ -10,56 +9,100 @@ pub struct Arguments {
 }
 
 pub fn run(args: &Arguments, opts: &Config) -> Result<(), Box<dyn std::error::Error>> {
-	if args.problems.is_empty() {
-		// TODO: prompt user for problems
-		log::error!("Expected problem name !")
-	}
+	let problems = if !args.problems.is_empty() {
+		&args.problems
+	} else {
+		&utils::prompt_user_for_problems()
+	};
 
-	for source in &args.problems {
-		edit_problem(source, args, opts);
+	for source in problems {
+		edit_problem(source, opts);
 	}
 	Ok(())
 }
 
-fn edit_problem(source: &String, _args: &Arguments, opts: &Config) {
-	let pb_path = contest::get_path(&source, opts);
-	let pb_name = contest::get_name(&source, opts);
-
-	let contents = get_solution(&pb_path, &pb_name, &opts).unwrap();
-	utils::create(&pb_path, &contents);
+fn edit_problem(source: &String, opts: &Config) {
+	let solution_path = contest::get_solution_path(source, opts);
+	let pb_name = contest::get_name(source, opts);
+	let contents = match get_solution(&solution_path, &pb_name, opts) {
+		Ok(contents) => contents,
+		Err(err) => {
+			log::error!("{}", err);
+			return;
+		}
+	};
+	utils::create(&solution_path, &contents);
 }
 
-fn get_solution(base_path: &PathBuf, source: &String, opts: &Config) -> Result<String, io::Error> {
-	let (metadata, solution) = get_metadata_and_content(base_path, opts)?; // TODO use metadata
-	utils::create_preview_file(source, opts);
-	let tmp_path = opts.tmpdir.join(&source);
-	// TODO utils::figures::copy
-	let path = base_path.join(format!("solution{}", opts.lang.ext()));
-	utils::create(&tmp_path, &solution);
-	utils::edit(&tmp_path, &opts.editor);
-	// TODO utils::figures::save
-	Ok(fs::read_to_string(path)?.trim_start().to_string()) // TODO handle error
+fn get_solution(solution_path: &Path, source: &String, opts: &Config) -> Result<String, std::io::Error> {
+	let (metadata, solution) = parse_metadata_and_return_content(solution_path)?;
+	let mut shared = std::collections::HashMap::new();
+	shared.insert("source", source.clone());
+	shared.insert("packages", opts.packages.get(opts).clone());
+	utils::create_preview_file(source, opts, Some(metadata), Some(&shared));
+
+	let tmp_path = opts.tmpdir.join(source);
+	utils::figures::copy(&tmp_path, solution_path.parent().unwrap_or(Path::new(".")), opts);
+
+	let tmp_file = tmp_path.join(format!("solution{}", opts.lang.ext()));
+	utils::create(&tmp_file, &solution);
+	utils::edit(&tmp_file, &opts.editor);
+	utils::figures::save(&tmp_path, solution_path.parent().unwrap_or(Path::new(".")), opts);
+
+	Ok(skip_leading_blank_lines(&std::fs::read_to_string(&tmp_file)?))
 }
 
-fn get_metadata_and_content(
-	base_path: &PathBuf,
-	opts: &Config,
-) -> Result<(Yaml::Value, String), io::Error> {
-	let content = fs::read_to_string(base_path)?;
-	let metadata = content
-		.lines()
-		.enumerate()
-		.find(|(_, l)| l.starts_with(opts.lang.comment_close()));
-	if let Some((i, metadata)) = metadata {
-		Ok((
-			Yaml::from_str(metadata)
-				.unwrap_or(Yaml::from_str("").expect("empty string is valid yaml")), // TODO log error
-			content.lines().skip(i).fold("".into(), |acc, l| acc + l),
-		))
-	} else {
-		Ok((
-			Yaml::from_str("").expect("empty string is valid yaml"),
-			content,
-		))
+fn skip_leading_blank_lines(content: &str) -> String {
+	let mut lines = content.lines();
+	let mut out = String::new();
+	while let Some(line) = lines.next() {
+		if !line.trim().is_empty() {
+			out.push_str(line);
+			out.push('\n');
+			for line in lines {
+				out.push_str(line);
+				out.push('\n');
+			}
+			return out;
+		}
 	}
+	out
+}
+
+fn parse_metadata_and_return_content(
+	solution_path: &Path,
+) -> Result<(Yaml::Value, String), std::io::Error> {
+	let content = std::fs::read_to_string(solution_path)?;
+	let mut lines = content.lines();
+
+	let mut solution = String::new();
+	if let Some(first) = lines.next() {
+		solution.push_str(first);
+		solution.push('\n');
+	}
+
+	let mut metadata_str = String::new();
+	for line in lines.by_ref() {
+		solution.push_str(line);
+		solution.push('\n');
+		if !utils::is_yaml(line) {
+			break;
+		}
+		metadata_str.push_str(line);
+		metadata_str.push('\n');
+	}
+
+	for line in lines {
+		solution.push_str(line);
+		solution.push('\n');
+	}
+
+	let metadata = match Yaml::from_str(&metadata_str) {
+		Ok(metadata) => metadata,
+		Err(err) => {
+			log::error!("Couldn't parse metadata from {}: {}", solution_path.display(), err);
+			Yaml::from_str("").expect("empty string is valid yaml")
+		}
+	};
+	Ok((metadata, solution))
 }
