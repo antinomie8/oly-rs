@@ -45,7 +45,9 @@ fn get_solution(solution_path: &Path, source: &String, opts: &Config) -> Result<
 	utils::figures::copy(&tmp_path, solution_path.parent().unwrap_or(Path::new(".")), opts);
 
 	let tmp_file = tmp_path.join(format!("solution{}", opts.lang.ext()));
-	utils::create(&tmp_file, &solution);
+	if !tmp_file.exists() {
+		utils::create(&tmp_file, &solution);
+	}
 	utils::edit(&tmp_file, &opts.editor);
 	utils::figures::save(&tmp_path, solution_path.parent().unwrap_or(Path::new(".")), opts);
 
