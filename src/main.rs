@@ -6,6 +6,7 @@ mod utils;
 
 use crate::config::{Config, Lang};
 use clap::{Parser, Subcommand};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -150,14 +151,29 @@ fn scheme_handler(request: &str, opts: &mut Config) -> Result<(), Box<dyn std::e
 	log::info!("received request: {}", request);
 
 	let url = &request[request.len().min(6)..];
-	let mark = url.find('?');
-	let equals = url.find('=');
-	let (Some(mark), Some(equals)) = (mark, equals) else {
+	let Some((cmd_name, query)) = url.split_once('?') else {
 		return Err("malformed query: expected format oly://cmd?name=<problem name>".into());
 	};
 
-	let cmd_name = &url[..mark];
-	let pb_name = &url[equals + 1..];
+	let mut params: HashMap<&str, &str> = HashMap::new();
+	for pair in query.split('&') {
+		if let Some((key, value)) = pair.split_once('=') {
+			params.insert(key, value);
+		}
+	}
+
+	let Some(pb_name) = params.get("name") else {
+		return Err("malformed query: expected format oly://cmd?name=<problem name>".into());
+	};
+	let page = params
+		.get("page")
+		.and_then(|value| match value.parse::<u32>() {
+			Ok(page) => Some(page),
+			Err(_) => {
+				log::warn!("invalid page number: {}", value);
+				None
+			}
+		});
 
 	logger::set_scheme();
 	logger::set_level(log::LevelFilter::Warn);
@@ -196,6 +212,7 @@ fn scheme_handler(request: &str, opts: &mut Config) -> Result<(), Box<dyn std::e
 				clear_cache: false,
 				regen: false,
 				all: false,
+				page,
 				problems: vec![pb_name.to_string()],
 			},
 			opts,

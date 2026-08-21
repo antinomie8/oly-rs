@@ -15,9 +15,13 @@
 	body
 }
 
-#let oly(name, ..arg) = {
-	let text = arg.at(0, default: name)
-	link("oly://gen?name=" + name, text)
+#let oly(name, page: none, ..args) = {
+	let text = args.pos().at(0, default: name)
+	let url = "oly://gen?name=" + name
+	if page != none {
+		url += "&page=" + str(page)
+	}
+	link(url, text)
 }
 
 #let counter = 0

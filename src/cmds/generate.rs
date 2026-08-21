@@ -50,6 +50,10 @@ pub struct Arguments {
 	#[arg(long, default_value_t = false)]
 	pub all: bool,
 
+	/// Open the generated pdf at this page number
+	#[arg(long)]
+	pub page: Option<u32>,
+
 	pub problems: Vec<String>,
 }
 
@@ -304,8 +308,15 @@ fn compile_output(path: &Path, args: &Arguments, opts: &Config) {
 				"-silent".to_string(),
 			];
 			if open {
+				let page_flag = args
+					.page
+					.map(|page| format!("--page {}", page))
+					.unwrap_or_default();
 				cmd.push("-e".to_string());
-				cmd.push(format!("'$pdf_previewer=q[{} %S];'", opts.pdf_viewer));
+				cmd.push(format!(
+					"'$pdf_previewer=q[{} {} %S];'",
+					opts.pdf_viewer, page_flag
+				));
 			}
 			cmd.push(format!("-outdir={}", outdir.display()));
 			cmd.push(path.display().to_string());
@@ -339,29 +350,40 @@ fn compile_output(path: &Path, args: &Arguments, opts: &Config) {
 				"--root".to_string(),
 				root.display().to_string(),
 			];
-			if open {
-				cmd.push("--open".to_string());
-				cmd.push(opts.pdf_viewer.clone());
-			}
 			cmd.push(path.display().to_string());
+			let mut pdf = path.with_extension("pdf");
 			if args.cwd {
-				let pdf = path
-					.file_name()
-					.map(PathBuf::from)
-					.unwrap_or_else(|| PathBuf::from("out.pdf"))
-					.with_extension("pdf");
-				cmd.push(
-					std::env::current_dir()
-						.unwrap_or_else(|_| PathBuf::from("."))
-						.join(pdf)
-						.display()
-						.to_string(),
-				);
+				pdf = std::env::current_dir()
+					.unwrap_or_else(|_| PathBuf::from("."))
+					.join(
+						path.file_name()
+							.map(PathBuf::from)
+							.unwrap_or_else(|| PathBuf::from("out.pdf"))
+							.with_extension("pdf"),
+					);
+				cmd.push(pdf.display().to_string());
 			}
-			if let Err(err) = utils::run_command(&cmd, false, false) {
-				log::error!("{}", err);
+			match utils::run_command(&cmd, false, false) {
+				Ok(0) => {
+					if open {
+						open_pdf(&pdf, args.page, opts);
+					}
+				}
+				Ok(_) => {}
+				Err(err) => log::error!("{}", err),
 			}
 		}
+	}
+}
+
+fn open_pdf(pdf: &Path, page: Option<u32>, opts: &Config) {
+	let mut cmd = vec![opts.pdf_viewer.clone(), pdf.display().to_string()];
+	if let Some(page) = page {
+		cmd.push("--page".to_string());
+		cmd.push(page.to_string());
+	}
+	if let Err(err) = utils::run_command(&cmd, true, true) {
+		log::error!("{}", err);
 	}
 }
 
@@ -391,13 +413,7 @@ fn create_pdf(problems: &[String], source: &str, args: &Arguments, opts: &Config
 
 	if !regenerate {
 		let pdf = output_path.with_extension("pdf");
-		if let Err(err) = utils::run_command(
-			&[opts.pdf_viewer.clone(), pdf.display().to_string()],
-			true,
-			true,
-		) {
-			log::error!("{}", err);
-		}
+		open_pdf(&pdf, args.page, opts);
 		return;
 	}
 

@@ -88,6 +88,7 @@ _arguments "${_arguments_options[@]}" : \
 '--clear-cache[Clear the cache]' \
 '--regen[Regenerate the pdf even if it was cached]' \
 '--all[Generate a pdf for each solution file]' \
+'--page=[Open the generated pdf at this page number]:PAGE:_numbers' \
 '-v[Print program version and related info]' \
 '--version[Print program version and related info]' \
 '--verify-config[Check whether the config has any errors]' \
