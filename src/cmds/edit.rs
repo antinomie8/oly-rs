@@ -45,7 +45,16 @@ fn get_solution(solution_path: &Path, source: &String, opts: &Config) -> Result<
 	utils::figures::copy(&tmp_path, solution_path.parent().unwrap_or(Path::new(".")), opts);
 
 	let tmp_file = tmp_path.join(format!("solution{}", opts.lang.ext()));
-	if !tmp_file.exists() {
+	let stale = match (std::fs::metadata(&tmp_file), std::fs::metadata(solution_path)) {
+		(Ok(tmp_meta), Ok(sol_meta)) => sol_meta
+			.modified()
+			.unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+			> tmp_meta
+				.modified()
+				.unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+		_ => true,
+	};
+	if stale {
 		utils::create(&tmp_file, &solution);
 	}
 	utils::edit(&tmp_file, &opts.editor);
