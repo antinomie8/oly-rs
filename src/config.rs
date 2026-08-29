@@ -184,12 +184,29 @@ where
 }
 
 fn get_editor() -> String {
-	env::var("EDITOR").unwrap_or(env::var("VISUAl").unwrap_or("xdg-open".into())) // TODO cross platform
+	if let Ok(ed) = env::var("EDITOR") {
+		if !ed.trim().is_empty() {
+			return ed;
+		}
+	}
+	if let Ok(ed) = env::var("VISUAL") {
+		if !ed.trim().is_empty() {
+			return ed;
+		}
+	}
+	for cand in ["nvim", "vim", "helix", "nano"] {
+		if crate::utils::is_executable(cand) {
+			return cand.to_string();
+		}
+	}
+	"xdg-open".into()
 }
 
 impl ::std::default::Default for Config {
 	fn default() -> Self {
-		let strategy = choose_base_strategy().unwrap();
+		let strategy = choose_base_strategy().unwrap_or_else(|_| {
+			panic!("could not determine base directories (HOME/XDG not set)")
+		});
 		Self {
 			author: "".into(),
 			base_path: strategy.data_dir().join("oly"),
@@ -203,7 +220,7 @@ impl ::std::default::Default for Config {
 			filter_lang: false,
 			abbreviations: {
 				let mut abbr = HashMap::new();
-				abbr.insert("Shortlist".into(), "ISl".into());
+				abbr.insert("Shortlist".into(), "ISL".into());
 				abbr
 			},
 			contest_format: HashMap::new(),
@@ -234,13 +251,13 @@ impl ::std::default::Default for Config {
 
 impl Config {
 	pub fn load(path: &Option<PathBuf>) -> Self {
+		let default_config_path = choose_base_strategy()
+			.map(|s| s.config_dir().join("oly/config.yaml"))
+			.unwrap_or_else(|_| PathBuf::from(env::var("HOME").unwrap_or_else(|_| ".".into())).join(".config/oly/config.yaml"));
 		let config_path = if let Some(path) = path {
 			path
 		} else {
-			&choose_base_strategy()
-				.unwrap()
-				.config_dir()
-				.join("oly/config.yaml")
+			&default_config_path
 		};
 		let editor = get_editor();
 		if !fs::exists(config_path).unwrap_or(false) {
@@ -254,13 +271,13 @@ impl Config {
 				match Config::deserialize(&config) {
 					Ok(mut parsed_config) => {
 						parsed_config.base_path = PathBuf::from(utils::expand_env_vars(
-							parsed_config.base_path.to_str().unwrap_or(""),
+							&parsed_config.base_path.to_string_lossy(),
 						));
 						parsed_config.output_directory = PathBuf::from(utils::expand_env_vars(
-							parsed_config.output_directory.to_str().unwrap_or(""),
+							&parsed_config.output_directory.to_string_lossy(),
 						));
 						parsed_config.tmpdir = PathBuf::from(utils::expand_env_vars(
-							parsed_config.tmpdir.to_str().unwrap_or(""),
+							&parsed_config.tmpdir.to_string_lossy(),
 						));
 						break parsed_config;
 					}
@@ -279,8 +296,8 @@ impl Config {
 	pub fn get(&self, key: &str) -> Option<String> {
 		match key {
 			"author" => Some(self.author.clone()),
-			"base_path" => Some(self.base_path.to_str().unwrap().to_string()),
-			"figures_dir" => Some(self.figures_dir.to_str().unwrap().to_string()),
+			"base_path" => Some(self.base_path.to_string_lossy().to_string()),
+			"figures_dir" => Some(self.figures_dir.to_string_lossy().to_string()),
 			"language" => Some(self.language.clone()),
 			"editor" => Some(self.editor.clone()),
 			"pdf_viewer" => Some(self.pdf_viewer.clone()),

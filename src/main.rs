@@ -155,10 +155,11 @@ fn scheme_handler(request: &str, opts: &mut Config) -> Result<(), Box<dyn std::e
 		return Err("malformed query: expected format oly://cmd?name=<problem name>".into());
 	};
 
-	let mut params: HashMap<&str, &str> = HashMap::new();
+	let mut params: HashMap<String, String> = HashMap::new();
 	for pair in query.split('&') {
 		if let Some((key, value)) = pair.split_once('=') {
-			params.insert(key, value);
+			let decoded = value.replace("%20", " ").replace('+', " ");
+			params.insert(key.to_string(), decoded);
 		}
 	}
 
@@ -170,7 +171,7 @@ fn scheme_handler(request: &str, opts: &mut Config) -> Result<(), Box<dyn std::e
 		.and_then(|value| match value.parse::<u32>() {
 			Ok(page) => Some(page),
 			Err(_) => {
-				log::warn!("invalid page number: {}", value);
+				log::warn!("invalid page number: {value}");
 				None
 			}
 		});

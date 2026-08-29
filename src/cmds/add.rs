@@ -72,7 +72,7 @@ fn get_solution_body(base_path: &PathBuf, source: &String, opts: &Config) -> Str
 		Err(e) => {
 			log::error!(
 				"failed to read {} file contents: {}",
-				path.to_str().unwrap(),
+				path.display(),
 				e
 			);
 			String::new()

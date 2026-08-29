@@ -145,10 +145,10 @@ fn get_relative_path(source: &str, opts: &Config) -> PathBuf {
 				"year" => year_val.clone(),
 				"problem" => problem_val.clone(),
 				"source" => source_val.clone(),
+				"topic" => get_topic(source),
 				_ => String::new(),
 			}
 		};
-		// TODO: pass topic
 		PathBuf::from(utils::base_expand_vars(&format_str, expander))
 	} else if !contest.is_empty() {
 		let year = parsers::get_year(source);
@@ -213,7 +213,7 @@ fn snapshot_config(snapshot: &ConfigSnapshot) -> Config {
 #[memoize]
 fn get_path_memoized(source: String, snapshot: ConfigSnapshot) -> PathBuf {
 	let opts = snapshot_config(&snapshot);
-	let base_path = PathBuf::from(utils::expand_env_vars(opts.base_path.to_str().unwrap()));
+	let base_path = PathBuf::from(utils::expand_env_vars(&opts.base_path.to_string_lossy()));
 	let source_path = get_relative_path(&source, &opts);
 	base_path.join(source_path)
 }

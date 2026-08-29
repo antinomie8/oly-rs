@@ -186,11 +186,41 @@ pub fn trim_newlines(str: &str) -> String {
 }
 
 pub fn is_executable(cmd: &str) -> bool {
-	if cmd.contains('/') {
-		return Path::new(cmd).is_file();
+	if cmd.contains('/') || cmd.contains('\\') {
+		let p = Path::new(cmd);
+		#[cfg(unix)]
+		{
+			use std::os::unix::fs::PermissionsExt;
+			return p.is_file()
+				&& fs::metadata(p)
+					.map(|m| m.permissions().mode() & 0o111 != 0)
+					.unwrap_or(false);
+		}
+		#[cfg(not(unix))]
+		{
+			return p.is_file();
+		}
 	}
 	std::env::var_os("PATH")
-		.map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(cmd).is_file()))
+		.map(|paths| {
+			std::env::split_paths(&paths).any(|dir| {
+				let p = dir.join(cmd);
+				if !p.is_file() {
+					return false;
+				}
+				#[cfg(unix)]
+				{
+					use std::os::unix::fs::PermissionsExt;
+					fs::metadata(&p)
+						.map(|m| m.permissions().mode() & 0o111 != 0)
+						.unwrap_or(false)
+				}
+				#[cfg(not(unix))]
+				{
+					true
+				}
+			})
+		})
 		.unwrap_or(false)
 }
 
@@ -248,6 +278,7 @@ pub fn prompt_before_deletion(path: &Path) -> bool {
 		"Are you sure you want to remove {} ? [y/n] ",
 		path.display()
 	);
+	let _ = io::stderr().flush();
 	let mut input = String::new();
 	if io::stdin().read_line(&mut input).is_err() {
 		return false;

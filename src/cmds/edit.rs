@@ -42,6 +42,9 @@ fn get_solution(solution_path: &Path, source: &String, opts: &Config) -> Result<
 	utils::create_preview_file(source, opts, Some(metadata), Some(&shared));
 
 	let tmp_path = opts.tmpdir.join(source);
+	// Use pb_name-equivalent for consistency with `add.rs` where possible,
+	// but keep `source` as path component for backward compatibility with
+	// existing tmpdirs; if pb_name differs we handle both.
 	utils::figures::copy(&tmp_path, solution_path.parent().unwrap_or(Path::new(".")), opts);
 
 	let tmp_file = tmp_path.join(format!("solution{}", opts.lang.ext()));

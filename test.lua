@@ -6,6 +6,20 @@ local SUCCESS = "\27[38;5;46m"
 local BOLD = "\27[1m"
 local RESET = "\27[0m"
 
+-- Resolve the oly binary once (avoid `cargo run` overhead per call)
+local OLY_BIN do
+	local candidates = { "target/debug/oly", "target/release/oly" }
+	for _, p in ipairs(candidates) do
+		local f = io.open(p, "r")
+		if f then
+			f:close()
+			OLY_BIN = p
+			break
+		end
+	end
+	OLY_BIN = OLY_BIN or "cargo" -- fallback (will use `cargo run`)
+end
+
 ---Runs an oly command
 ---@param cmd string[]
 ---@param opts {silent: boolean?}?
@@ -21,14 +35,21 @@ local function oly(cmd, opts)
 	local output = {}
 	local exit_code = nil
 
-	local cargo_args = { "run", "--quiet", "--" }
-	for _, arg in ipairs(cmd) do
-		table.insert(cargo_args, arg)
+	local bin, args
+	if OLY_BIN == "cargo" then
+		bin = "cargo"
+		args = { "run", "--quiet", "--" }
+		for _, arg in ipairs(cmd) do
+			table.insert(args, arg)
+		end
+	else
+		bin = OLY_BIN
+		args = cmd
 	end
 
 	local handle
-	handle = uv.spawn("cargo", {
-		args = cargo_args,
+	handle = uv.spawn(bin, {
+		args = args,
 		stdio = { nil, stdout, stderr },
 	}, function(code, signal)
 		exit_code = code
@@ -96,12 +117,23 @@ local tests = {
 			for _, lang in ipairs({ "latex", "typst" }) do
 				local handle = oly({ "list", "--filter-lang", "--lang", lang })
 				if not handle then return 2 end
+				if #handle.lines == 0 then goto continue end
+				-- batch: one `show` for all problems (show supports multiple args)
+				-- keeps per-process overhead O(1) instead of O(N) cargo spawns
+				local batch = { "show", "--color", "never", "--lang", lang }
+				for _, pb in ipairs(handle.lines) do
+					table.insert(batch, pb)
+				end
+				local ok = oly(batch, { silent = true })
+				if ok and ok.success then goto continue end
+				-- batch failed (or binary missing) → fall back to per-problem to isolate failures
 				for _, pb in ipairs(handle.lines) do
 					local show = oly({ "show", pb, "--lang", lang, "--color", "never" }, { silent = true })
 					if not show or not show.success then
 						table.insert(failed, pb)
 					end
 				end
+				::continue::
 			end
 
 			if #failed > 0 then

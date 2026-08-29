@@ -11,29 +11,81 @@ pub struct Arguments {
 	pub problems: Vec<String>,
 }
 
+fn symlink(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+	#[cfg(unix)]
+	{
+		std::os::unix::fs::symlink(from, to)
+	}
+	#[cfg(windows)]
+	{
+		if from.is_dir() {
+			std::os::windows::fs::symlink_dir(from, to)
+		} else {
+			std::os::windows::fs::symlink_file(from, to)
+		}
+	}
+	#[cfg(not(any(unix, windows)))]
+	{
+		let _ = (from, to);
+		Err(std::io::Error::new(
+			std::io::ErrorKind::Unsupported,
+			"symlinks not supported",
+		))
+	}
+}
+
 fn move_problem(from: &std::path::Path, to: &std::path::Path, alias: bool, opts: &Config) {
+	if from == to {
+		log::error!("{} and {} are the same file", from.display(), to.display());
+		return;
+	}
 	if let Some(parent) = to.parent() {
 		if let Err(err) = fs::create_dir_all(parent) {
 			log::error!("{}", err);
 			return;
 		}
 	}
-	if let Err(err) = fs::rename(from, to) {
-		log::error!("{}", err);
+	if to.exists() || to.is_symlink() {
+		log::error!("{} already exists", to.display());
 		return;
+	}
+	if let Err(err) = fs::rename(from, to) {
+		// Cross-device fallback: copy then remove
+		if err.kind() == std::io::ErrorKind::CrossesDevices {
+			log::info!("cross-device rename, falling back to copy");
+			if let Err(e) = copy_recursively(from, to) {
+				log::error!("failed to copy {} to {}: {}", from.display(), to.display(), e);
+				return;
+			}
+			if let Err(e) = fs::remove_dir_all(from).or_else(|_| fs::remove_file(from)) {
+				log::error!("failed to remove source {}: {}", from.display(), e);
+			}
+		} else {
+			log::error!("{}", err);
+			return;
+		}
 	}
 	if let Some(parent) = from.parent() {
 		utils::remove_empty_parents(parent.to_path_buf(), &opts.base_path);
 	}
-	if to.exists() {
-		if alias {
-			if let Err(err) = std::os::unix::fs::symlink(to, from) {
-				log::error!("{}", err);
-			}
+	if alias {
+		if let Err(err) = symlink(to, from) {
+			log::error!("failed to create alias {} -> {}: {}", from.display(), to.display(), err);
+		}
+	}
+}
+
+fn copy_recursively(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+	if from.is_dir() {
+		fs::create_dir_all(to)?;
+		for entry in fs::read_dir(from)? {
+			let entry = entry?;
+			copy_recursively(&entry.path(), &to.join(entry.file_name()))?;
 		}
 	} else {
-		log::error!("cannot rename {} to {}", from.display(), to.display());
+		fs::copy(from, to)?;
 	}
+	Ok(())
 }
 
 pub fn run(args: &Arguments, opts: &Config) -> Result<(), Box<dyn std::error::Error>> {

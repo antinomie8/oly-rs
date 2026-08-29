@@ -64,12 +64,17 @@ fn visit_dir(
 	separator: char,
 	filter_lang: bool,
 ) -> Result<(), Box<dyn Error>> {
-	for entry in fs::read_dir(path)? {
-		let entry = entry?;
+	let mut entries: Vec<_> = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+	entries.sort_by_key(|e| e.path());
+	for entry in entries {
 		let path = entry.path();
 		if path.is_dir() {
 			visit_dir(&path, args, opts, separator, filter_lang)?;
 		} else if path.is_file() {
+			// Only consider solution files to avoid stray matches
+			if path.file_stem().and_then(|s| s.to_str()) != Some("solution") {
+				continue;
+			}
 			if filter_lang
 				&& path.extension().and_then(|ext| ext.to_str())
 					!= opts.lang.ext().strip_prefix('.')

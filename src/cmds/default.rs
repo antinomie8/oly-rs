@@ -53,17 +53,27 @@ fn handle_scheme(request: &str, opts: &Config) -> Result<(), Box<dyn std::error:
 	};
 
 	let url = request.get(6..).unwrap_or("");
-	let mark = url.find('?');
-	let equals = url.find('=');
-	let (Some(mark), Some(equals)) = (mark, equals) else {
+	let Some((cmd_name, query)) = url.split_once('?') else {
 		log::error!("malformed query: expected format oly://cmd?name=<problem name>");
 		return Err("malformed query".into());
 	};
-	let cmd_name = &url[..mark];
-	let pb_name = url[equals + 1..].to_string();
+	let mut params = std::collections::HashMap::new();
+	for pair in query.split('&') {
+		if let Some((k, v)) = pair.split_once('=') {
+			// Basic URL decode for common cases (%20 -> space)
+			let decoded = v.replace("%20", " ").replace('+', " ");
+			params.insert(k, decoded);
+		}
+	}
+	let Some(pb_name) = params.get("name").cloned() else {
+		log::error!("malformed query: expected format oly://cmd?name=<problem name>");
+		return Err("malformed query".into());
+	};
+	let page = params.get("page").and_then(|v| v.parse::<u32>().ok());
 
 	crate::logger::set_level(log::LevelFilter::Warn);
 	crate::logger::set_scheme();
+	unsafe { std::env::set_var("OLY", cmd_name) };
 
 	match cmd_name {
 		"add" => crate::cmds::add::run(
@@ -75,6 +85,38 @@ fn handle_scheme(request: &str, opts: &Config) -> Result<(), Box<dyn std::error:
 		),
 		"edit" => crate::cmds::edit::run(
 			&crate::cmds::edit::Arguments {
+				problems: vec![pb_name],
+			},
+			opts,
+		),
+		"show" => crate::cmds::show::run(
+			&crate::cmds::show::Arguments {
+				color: "auto".to_string(),
+				problems: vec![pb_name],
+			},
+			opts,
+		),
+		"gen" => crate::cmds::generate::run(
+			&crate::cmds::generate::Arguments {
+				open: false,
+				no_open: false,
+				clean: false,
+				no_pdf: false,
+				no_source: false,
+				cwd: false,
+				print_path: false,
+				clear_cache: false,
+				regen: false,
+				all: false,
+				page,
+				problems: vec![pb_name],
+			},
+			opts,
+		),
+		"rm" => crate::cmds::remove::run(
+			&crate::cmds::remove::Arguments {
+				confirm: false,
+				force: false,
 				problems: vec![pb_name],
 			},
 			opts,

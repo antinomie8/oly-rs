@@ -119,7 +119,7 @@ fn yaml_str<'a>(metadata: &'a Yaml::Value, key: &str) -> Option<&'a str> {
 fn output_source_path(source: &str, opts: &Config) -> PathBuf {
 	let shared = HashMap::from([("source", source.to_string())]);
 	let output_directory = utils::expand_vars(
-		opts.output_directory.to_str().unwrap(),
+		&opts.output_directory.to_string_lossy(),
 		true,
 		true,
 		None,
@@ -442,8 +442,9 @@ fn create_pdf(problems: &[String], source: &str, args: &Arguments, opts: &Config
 }
 
 fn generate_all_in_dir(path: &Path, args: &Arguments, opts: &Config) -> Result<(), Box<dyn Error>> {
-	for entry in fs::read_dir(path)? {
-		let entry = entry?;
+	let mut entries: Vec<_> = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+	entries.sort_by_key(|e| e.path());
+	for entry in entries {
 		let path = entry.path();
 		if path.is_dir() {
 			generate_all_in_dir(&path, args, opts)?;
@@ -464,6 +465,7 @@ fn generate_all_in_dir(path: &Path, args: &Arguments, opts: &Config) -> Result<(
 			let mut file_args = args.clone();
 			file_args.open = false;
 			file_args.regen = true;
+			file_args.problems = vec![source.to_string()];
 			create_pdf(&[source.to_string()], source, &file_args, &file_opts);
 		}
 	}
@@ -473,7 +475,7 @@ fn generate_all_in_dir(path: &Path, args: &Arguments, opts: &Config) -> Result<(
 pub fn run(args: &Arguments, opts: &Config) -> Result<(), Box<dyn Error>> {
 	if args.clear_cache {
 		let path = PathBuf::from(utils::expand_env_vars(
-			opts.output_directory.to_str().unwrap(),
+			&opts.output_directory.to_string_lossy(),
 		));
 		if utils::prompt_before_deletion(&path) {
 			fs::remove_dir_all(path)?;
