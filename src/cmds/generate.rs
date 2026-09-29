@@ -279,15 +279,18 @@ fn create_typst_file(
 	Ok(())
 }
 
+fn should_open(args: &Arguments, opts: &Config) -> bool {
+	if args.no_open {
+		return false;
+	}
+	args.open || opts.open
+}
+
 fn compile_output(path: &Path, args: &Arguments, opts: &Config) {
 	if args.no_pdf {
 		return;
 	}
-	let open = if args.no_open {
-		false
-	} else {
-		args.open || opts.open
-	};
+	let open = should_open(args, opts);
 	if open && !utils::is_executable(&opts.pdf_viewer) {
 		log::error!("{} is not executable", opts.pdf_viewer);
 	}
@@ -412,8 +415,10 @@ fn create_pdf(problems: &[String], source: &str, args: &Arguments, opts: &Config
 	};
 
 	if !regenerate {
-		let pdf = output_path.with_extension("pdf");
-		open_pdf(&pdf, args.page, opts);
+		if should_open(args, opts) {
+			let pdf = output_path.with_extension("pdf");
+			open_pdf(&pdf, args.page, opts);
+		}
 		return;
 	}
 
@@ -462,6 +467,8 @@ fn generate_all_in_dir(path: &Path, args: &Arguments, opts: &Config) -> Result<(
 				Some("tex") => Lang::Latex,
 				_ => continue,
 			};
+			// Mirror C++ (`opts.open = false` for --all): never open viewer in batch mode.
+			file_opts.open = false;
 			let mut file_args = args.clone();
 			file_args.open = false;
 			file_args.regen = true;
