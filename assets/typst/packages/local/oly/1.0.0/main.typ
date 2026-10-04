@@ -3,7 +3,7 @@
 	title: none,
 	subtitle: none,
 	author: (),
-	date: none,
+	date: auto,
 	maketitle: true,
 	body,
 ) = {
