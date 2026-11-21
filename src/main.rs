@@ -6,7 +6,6 @@ mod utils;
 
 use crate::config::{Config, Lang};
 use clap::{Parser, Subcommand};
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -108,10 +107,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		);
 	}
 
-	if let Some(request) = &cli.scheme {
-		return scheme_handler(request, &mut config);
-	}
-
 	match &cli.command {
 		Some(Commands::Add(args)) => cmds::add::run(args, &config),
 		Some(Commands::Edit(args)) => cmds::edit::run(args, &config),
@@ -124,111 +119,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		Some(Commands::Mv(args)) => cmds::rename::run(args, &config),
 		Some(Commands::Completions(args)) => cmds::completions::run(args, &config),
 		None => cmds::default::run(&cli, &config),
-	}
-}
-
-fn scheme_handler(request: &str, opts: &mut Config) -> Result<(), Box<dyn std::error::Error>> {
-	use std::io::BufRead;
-
-	let request = if request.is_empty() {
-		print!("Enter problem name: ");
-		let mut name = String::new();
-		std::io::stdin().lock().read_line(&mut name).ok();
-		let pb_name = name.trim();
-		if pb_name.is_empty() {
-			return Err("No problem name provided".into());
-		}
-		let pb_path = contest::get_path(pb_name, opts);
-		if pb_path.exists() {
-			format!("oly://edit?name={pb_name}")
-		} else {
-			format!("oly://add?name={pb_name}")
-		}
-	} else {
-		request.to_string()
-	};
-
-	log::info!("received request: {}", request);
-
-	let url = &request[request.len().min(6)..];
-	let Some((cmd_name, query)) = url.split_once('?') else {
-		return Err("malformed query: expected format oly://cmd?name=<problem name>".into());
-	};
-
-	let mut params: HashMap<String, String> = HashMap::new();
-	for pair in query.split('&') {
-		if let Some((key, value)) = pair.split_once('=') {
-			let decoded = value.replace("%20", " ").replace('+', " ");
-			params.insert(key.to_string(), decoded);
-		}
-	}
-
-	let Some(pb_name) = params.get("name") else {
-		return Err("malformed query: expected format oly://cmd?name=<problem name>".into());
-	};
-	let page = params
-		.get("page")
-		.and_then(|value| match value.parse::<u32>() {
-			Ok(page) => Some(page),
-			Err(_) => {
-				log::warn!("invalid page number: {value}");
-				None
-			}
-		});
-
-	logger::set_scheme();
-	logger::set_level(log::LevelFilter::Warn);
-	unsafe { std::env::set_var("OLY", cmd_name) };
-
-	match cmd_name {
-		"edit" => cmds::edit::run(
-			&cmds::edit::Arguments {
-				problems: vec![pb_name.to_string()],
-			},
-			opts,
-		),
-		"add" => cmds::add::run(
-			&cmds::add::Arguments {
-				overwrite: false,
-				problems: vec![pb_name.to_string()],
-			},
-			opts,
-		),
-		"show" => cmds::show::run(
-			&cmds::show::Arguments {
-				color: "auto".to_string(),
-				problems: vec![pb_name.to_string()],
-			},
-			opts,
-		),
-		"gen" => cmds::generate::run(
-			&cmds::generate::Arguments {
-				open: false,
-				no_open: false,
-				clean: false,
-				no_pdf: false,
-				no_source: false,
-				cwd: false,
-				print_path: false,
-				clear_cache: false,
-				regen: false,
-				all: false,
-				page,
-				problems: vec![pb_name.to_string()],
-			},
-			opts,
-		),
-		"rm" => cmds::remove::run(
-			&cmds::remove::Arguments {
-				confirm: false,
-				force: false,
-				problems: vec![pb_name.to_string()],
-			},
-			opts,
-		),
-		_ => {
-			log::error!("unknown scheme command: {}", cmd_name);
-			Ok(())
-		}
 	}
 }
