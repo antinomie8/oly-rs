@@ -265,7 +265,10 @@ fn create_typst_file(
 		out.push_str("\n\n");
 		for (body_index, body) in bodies.iter().enumerate().skip(2) {
 			if body_index == 2 {
-				out.push_str(&format!("#solution[\n{}\n]", utils::trim_newlines(body)));
+				out.push_str(&format!(
+					"#solution(style: \"plain\")[\n{}\n]",
+					utils::trim_newlines(body)
+				));
 			} else {
 				out.push_str("#divider()\n\n");
 				out.push_str(body);

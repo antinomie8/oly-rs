@@ -40,7 +40,7 @@
 	*Problem:* #body
 ]
 
-#let solution(body) = [
+#let solution(body, style: "plain") = [
 	*Solution:* #body
 	#align(right, $square$)
 ]
