@@ -1,5 +1,4 @@
-use crate::{Arguments, config::Config, contest};
-use std::io::{self, Write};
+use crate::{Arguments, config::Config, contest, utils};
 
 fn print_version() {
 	println!("oly version {}", env!("CARGO_PKG_VERSION"));
@@ -36,25 +35,27 @@ pub fn print_help() {
 }
 
 fn handle_scheme(request: &str, opts: &Config) -> Result<(), Box<dyn std::error::Error>> {
-	let request = if request.is_empty() {
-		let mut pb_name = String::new();
-		print!("Enter problem name: ");
-		io::stdout().flush()?;
-		io::stdin().read_line(&mut pb_name)?;
-		let pb_name = pb_name.trim().to_string();
-		if contest::get_path(&pb_name, opts).exists() {
-			format!("oly://edit?name={pb_name}")
-		} else {
-			format!("oly://add?name={pb_name}")
+	if request.is_empty() {
+		let mut ret = Ok(());
+		for pb_name in utils::prompt_user_for_problems() {
+			let request = if contest::get_path(&pb_name, opts).exists() {
+				format!("oly://edit?name={pb_name}")
+			} else {
+				format!("oly://add?name={pb_name}")
+			};
+			ret = handle_scheme(request.as_str(), opts);
 		}
-	} else {
-		log::info!("received request: {request}");
-		request.to_string()
-	};
+		return ret;
+	}
+
+	log::info!("received request: {request}");
+	let request = request.to_string();
 
 	let url = request.get(6..).unwrap_or("");
 	let Some((cmd_name, query)) = url.split_once('?') else {
-		log::error!("malformed query: expected format oly://cmd?name=<problem name>");
+		log::error!(
+			"malformed query: expected format 'oly://cmd?name=<problem name>', received '{request}'"
+		);
 		return Err("malformed query".into());
 	};
 	let mut params = std::collections::HashMap::new();
@@ -66,7 +67,9 @@ fn handle_scheme(request: &str, opts: &Config) -> Result<(), Box<dyn std::error:
 		}
 	}
 	let Some(pb_name) = params.get("name").cloned() else {
-		log::error!("malformed query: expected format oly://cmd?name=<problem name>");
+		log::error!(
+			"malformed query: expected format 'oly://cmd?name=<problem name>', received '{request}'"
+		);
 		return Err("malformed query".into());
 	};
 	let page = params.get("page").and_then(|v| v.parse::<u32>().ok());
