@@ -14,6 +14,10 @@ pub struct Arguments {
 	#[arg(long, default_value_t = false)]
 	pub print0: bool,
 
+	/// Sort by solution modification time, newest first
+	#[arg(long)]
+	pub recent: bool,
+
 	/// Only output the entries written in the current markup language
 	#[arg(long, overrides_with = "no_filter_lang", action = ArgAction::SetTrue, default_value_t = false)]
 	pub filter_lang: bool,
@@ -63,13 +67,14 @@ fn visit_dir(
 	opts: &Config,
 	separator: char,
 	filter_lang: bool,
+	results: &mut Vec<(String, Option<std::time::SystemTime>)>,
 ) -> Result<(), Box<dyn Error>> {
 	let mut entries: Vec<_> = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
 	entries.sort_by_key(|e| e.path());
 	for entry in entries {
 		let path = entry.path();
 		if path.is_dir() {
-			visit_dir(&path, args, opts, separator, filter_lang)?;
+			visit_dir(&path, args, opts, separator, filter_lang, results)?;
 		} else if path.is_file() {
 			// Only consider solution files to avoid stray matches
 			if path.file_stem().and_then(|s| s.to_str()) != Some("solution") {
@@ -84,7 +89,11 @@ fn visit_dir(
 
 			if let Some(source) = parse_metadata_from_file(&path) {
 				if !args.test || source != contest::get_name(&source, opts) {
-					print!("{source}{separator}");
+					if args.recent {
+						results.push((source, fs::metadata(&path).and_then(|m| m.modified()).ok()));
+					} else {
+						print!("{source}{separator}");
+					}
 				}
 			}
 		}
@@ -95,8 +104,36 @@ fn visit_dir(
 pub fn run(args: &Arguments, opts: &Config) -> Result<(), Box<dyn Error>> {
 	let separator = if args.print0 { '\0' } else { '\n' };
 	let filter_lang = args.filter_lang || (opts.filter_lang && !args.no_filter_lang);
-	if let Err(err) = visit_dir(&opts.base_path, args, opts, separator, filter_lang) {
+	let mut results = Vec::new();
+	if let Err(err) = visit_dir(&opts.base_path, args, opts, separator, filter_lang, &mut results) {
 		log::error!("{}", err);
 	}
+	if args.recent {
+		sort_by_recency(&mut results);
+		for (source, _) in results {
+			print!("{source}{separator}");
+		}
+	}
 	Ok(())
+}
+
+fn sort_by_recency(results: &mut [(String, Option<std::time::SystemTime>)]) {
+	results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+}
+
+#[cfg(test)]
+mod tests {
+	use super::sort_by_recency;
+	use std::time::{Duration, UNIX_EPOCH};
+
+	#[test]
+	fn newest_first_with_missing_timestamps_last() {
+		let mut entries = vec![
+			("unknown".into(), None),
+			("old".into(), Some(UNIX_EPOCH)),
+			("new".into(), Some(UNIX_EPOCH + Duration::from_secs(1))),
+		];
+		sort_by_recency(&mut entries);
+		assert_eq!(entries.iter().map(|e| e.0.as_str()).collect::<Vec<_>>(), ["new", "old", "unknown"]);
+	}
 }
