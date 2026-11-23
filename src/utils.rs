@@ -256,7 +256,7 @@ pub fn prompt_user_for_problems() -> Vec<String> {
 	let output = Command::new("sh")
 		.arg("-c")
 		.arg(
-			"oly list --print0 --recent | fzf --read0 --print0 --multi --no-sort --preview 'oly show --color=always {}'",
+			"oly list --print0 --recent | fzf --read0 --print0 --multi --tiebreak=index --preview 'oly show --color=always {}'",
 		)
 		.output();
 	match output {
